@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 JsonDict = dict[str, object]
 
-class OpenAIRealtimeClient:
+class AudioToEventClient:
     """Minimal WebSocket-klient mot OpenAI/Azure Realtime.
 
     Den här klienten skickar PCM16-ljud som base64 i events av typen

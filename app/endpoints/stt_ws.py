@@ -7,7 +7,7 @@ from starlette.websockets import WebSocketState
 
 from ..config import settings
 from ..debug_store import store
-from ..stt.realtime_client import OpenAIRealtimeClient
+from ..stt.audio_to_event import AudioToEventClient
 from ..stt.receive_audio_from_frontend import process_frontend_message
 from ..stt.event_to_text import process_realtime_event
 from ..stt.send_transcription_to_frontend import send_transcription_to_frontend
@@ -36,7 +36,7 @@ async def ws_transcribe(ws: WebSocket):
         await ws.send_json({"type": "session.started", "session_id": session_id})
 
     # Setup klient mot OpenAI/Azure Realtime
-    rt = OpenAIRealtimeClient()  # Använder nu sina egna defaults/miljövariabler
+    rt = AudioToEventClient()  # Använder nu sina egna defaults/miljövariabler
     
     try:
         await rt.connect()
