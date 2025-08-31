@@ -36,13 +36,7 @@ async def ws_transcribe(ws: WebSocket):
         await ws.send_json({"type": "session.started", "session_id": session_id})
 
     # Setup klient mot OpenAI/Azure Realtime
-    rt = OpenAIRealtimeClient(
-        url=settings.realtime_url,
-        api_key=settings.openai_api_key,
-        transcribe_model=settings.transcribe_model,
-        language=settings.input_language,
-        add_beta_header=settings.add_beta_header,
-    )
+    rt = OpenAIRealtimeClient()  # Använder nu sina egna defaults/miljövariabler
     
     try:
         await rt.connect()
@@ -94,7 +88,8 @@ async def ws_transcribe(ws: WebSocket):
     async def commit_loop():
         try:
             while True:
-                await asyncio.sleep(max(0.001, settings.commit_interval_ms / 1000))
+                commit_interval = int(os.getenv("COMMIT_INTERVAL_MS", "150"))
+                await asyncio.sleep(max(0.001, commit_interval / 1000))
                 # Bara committa om vi har skickat ljud
                 if has_audio:
                     # Kontrollera om det har gått för lång tid sedan senaste ljudet

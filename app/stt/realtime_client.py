@@ -4,6 +4,7 @@ import asyncio
 import base64
 import json
 import logging
+import os
 from typing import AsyncIterator, Awaitable, Callable, Optional
 
 import websockets
@@ -21,17 +22,19 @@ class OpenAIRealtimeClient:
     """
     def __init__(
         self,
-        url: str,
-        api_key: str,
-        transcribe_model: str,
-        language: str = "sv",
-        add_beta_header: bool = True,
+        url: str = None,
+        api_key: str = None,
+        transcribe_model: str = None,
+        language: str = None,
+        add_beta_header: bool = None,
     ) -> None:
-        self.url = url
-        self.api_key = api_key
-        self.transcribe_model = transcribe_model
-        self.language = language
-        self.add_beta_header = add_beta_header
+        # Använd parametrar eller fallback till miljövariabler/defaults
+        self.url = url or os.getenv("REALTIME_URL", "wss://api.openai.com/v1/realtime?model=gpt-4o-mini-realtime-preview-2024-12-17")
+        self.api_key = api_key or os.getenv("OPENAI_API_KEY", "")
+        self.transcribe_model = transcribe_model or os.getenv("TRANSCRIBE_MODEL", "gpt-4o-mini-transcribe")
+        self.language = language or os.getenv("INPUT_LANGUAGE", "sv")
+        self.add_beta_header = add_beta_header if add_beta_header is not None else (os.getenv("ADD_BETA_HEADER", "true").lower() == "true")
+        
         self.ws: Optional[websockets.WebSocketClientProtocol] = None
         self._recv_task: Optional[asyncio.Task] = None
         self._connected = asyncio.Event()
