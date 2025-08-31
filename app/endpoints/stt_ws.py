@@ -7,7 +7,7 @@ from starlette.websockets import WebSocketState
 
 from ..config import settings
 from ..debug_store import store
-from ..realtime_client import OpenAIRealtimeClient
+from ..stt.realtime_client import OpenAIRealtimeClient
 
 log = logging.getLogger("stt")
 
