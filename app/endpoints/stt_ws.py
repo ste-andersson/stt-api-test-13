@@ -166,28 +166,24 @@ async def ws_transcribe(ws: WebSocket):
             try:
                 msg = await ws.receive()
 
-                if "bytes" in msg and msg["bytes"] is not None:
-                    chunk = msg["bytes"]
-                    buffers.frontend_chunks.append(len(chunk))
+                # Använd den nya modulen för att hantera meddelanden
+                result = process_frontend_message(msg, buffers)
+
+                # Hantera ljudmeddelande
+                if result["type"] == "audio":
                     try:
-                        await rt.send_audio_chunk(chunk)
-                        buffers.openai_chunks.append(len(chunk))
+                        await rt.send_audio_chunk(result["chunk"])
+                        buffers.openai_chunks.append(result["size"])
                         has_audio = True  # Markera att vi har skickat ljud
                         import time
                         last_audio_time = time.time()  # Uppdatera timestamp
                     except Exception as e:
                         log.error("Fel när chunk skickades till Realtime: %s", e)
                         break
-                elif "text" in msg and msg["text"] is not None:
-                    # Tillåt ping/ctrl meddelanden som sträng
-                    if msg["text"] == "ping":
-                        await ws.send_text("pong")
-                    else:
-                        # ignoreras
-                        pass
-                else:
-                    # okänt format
-                    pass
+
+                # Hantera ping-meddelande
+                elif result["type"] == "ping":
+                    await ws.send_text("pong")
 
             except WebSocketDisconnect:
                 log.info("WebSocket stängd: %s", session_id)
