@@ -8,6 +8,7 @@ from starlette.websockets import WebSocketState
 from ..config import settings
 from ..debug_store import store
 from ..stt.realtime_client import OpenAIRealtimeClient
+from ..stt.receive_audio_from_frontend import process_frontend_message
 
 log = logging.getLogger("stt")
 
