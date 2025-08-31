@@ -9,6 +9,7 @@ from ..config import settings
 from ..debug_store import store
 from ..stt.realtime_client import OpenAIRealtimeClient
 from ..stt.receive_audio_from_frontend import process_frontend_message
+from ..stt.event_to_text import process_realtime_event
 
 log = logging.getLogger("stt")
 
@@ -64,69 +65,38 @@ async def ws_transcribe(ws: WebSocket):
     # Task: läs events från Realtime och skicka deltas till frontend
     async def on_rt_event(evt: dict):
         nonlocal last_text
-        t = evt.get("type")
-
-        # (A) logga alltid eventtyp för felsökning (/debug/rt-events om ni har det)
-        try:
-            buffers.rt_events.append(str(t))
-        except Exception:
-            pass
-
-        # (B) bubbla upp error/info till klienten (syns i browser-konsol)
-        if t == "error":
-            detail = evt.get("error", evt)
-            if send_json and ws.client_state == WebSocketState.CONNECTED:
-                await ws.send_json({"type": "error", "reason": "realtime_error", "detail": detail})
+        
+        # Använd den nya modulen för att hantera events
+        result = process_realtime_event(evt, last_text, buffers)
+        
+        if not result:
             return
-        if t == "session.updated":
-            if send_json and ws.client_state == WebSocketState.CONNECTED:
-                await ws.send_json({"type": "info", "msg": "realtime_connected_and_configured"})
-            return
-
-        # (C) försök extrahera transcript från flera varianter
-        transcript = None
-
-        # 1) Klassisk Realtime-transkript (som repo 2 använder) - whisper-1 + server VAD
-        if t == "conversation.item.input_audio_transcription.completed":
-            transcript = (
-                evt.get("transcript")
-                or evt.get("item", {}).get("content", [{}])[0].get("transcript")
-            )
-
-        # 2) Alternativ nomenklatur: response.audio_transcript.delta/completed
-        if not transcript and t in ("response.audio_transcript.delta", "response.audio_transcript.completed"):
-            transcript = evt.get("transcript") or evt.get("text") or evt.get("delta")
-
-        # 3) Sista fallback: response.output_text.delta (text-delning)
-        if not transcript and t == "response.output_text.delta":
-            delta_txt = evt.get("delta")
-            if isinstance(delta_txt, str):
-                transcript = (last_text or "") + delta_txt
-
-        if not isinstance(transcript, str) or not transcript:
-            return
-
-        # (D) beräkna delta och skicka till frontend
-        delta = transcript[len(last_text):] if transcript.startswith(last_text) else transcript
-
-        if delta and ws.client_state == WebSocketState.CONNECTED:
-            buffers.openai_text.append(transcript)
             
-            # Bestäm om detta är final eller partial transcript
-            is_final = t in (
-                "conversation.item.input_audio_transcription.completed",
-                "response.audio_transcript.completed",
-            )
+        # Hantera error/info events
+        if result["type"] == "error":
+            if send_json and ws.client_state == WebSocketState.CONNECTED:
+                await ws.send_json({"type": "error", "reason": "realtime_error", "detail": result["detail"]})
+            return
+            
+        if result["type"] == "info":
+            if send_json and ws.client_state == WebSocketState.CONNECTED:
+                await ws.send_json({"type": "info", "msg": result["msg"]})
+            return
+            
+        # Hantera transcript events
+        if result["type"] == "transcript" and result["delta"] and ws.client_state == WebSocketState.CONNECTED:
+            buffers.openai_text.append(result["text"])
             
             if send_json:
                 await ws.send_json({
-                    "type": "stt.final" if is_final else "stt.partial",
-                    "text": transcript
+                    "type": "stt.final" if result["is_final"] else "stt.partial",
+                    "text": result["text"]
                 })
             else:
-                await ws.send_text(delta)  # fallback: ren text
-            buffers.frontend_text.append(delta)
-            last_text = transcript
+                await ws.send_text(result["delta"])  # fallback: ren text
+                
+            buffers.frontend_text.append(result["delta"])
+            last_text = result["text"]
 
     rt_recv_task = asyncio.create_task(rt.recv_loop(on_rt_event))
 
