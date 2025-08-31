@@ -10,6 +10,7 @@ from ..debug_store import store
 from ..stt.realtime_client import OpenAIRealtimeClient
 from ..stt.receive_audio_from_frontend import process_frontend_message
 from ..stt.event_to_text import process_realtime_event
+from ..stt.send_transcription_to_frontend import send_transcription_to_frontend
 
 log = logging.getLogger("stt")
 
@@ -84,19 +85,8 @@ async def ws_transcribe(ws: WebSocket):
             return
             
         # Hantera transcript events
-        if result["type"] == "transcript" and result["delta"] and ws.client_state == WebSocketState.CONNECTED:
-            buffers.openai_text.append(result["text"])
-            
-            if send_json:
-                await ws.send_json({
-                    "type": "stt.final" if result["is_final"] else "stt.partial",
-                    "text": result["text"]
-                })
-            else:
-                await ws.send_text(result["delta"])  # fallback: ren text
-                
-            buffers.frontend_text.append(result["delta"])
-            last_text = result["text"]
+        if result["type"] == "transcript" and ws.client_state == WebSocketState.CONNECTED:
+            last_text = await send_transcription_to_frontend(ws, result, send_json, buffers) or last_text
 
     rt_recv_task = asyncio.create_task(rt.recv_loop(on_rt_event))
 
