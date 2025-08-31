@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from .config import settings
 from .debug_store import store
-from .endpoints import stt_ws
+from .endpoints import stt_ws, health
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("stt")
@@ -42,8 +42,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Inkludera WebSocket router
+# Inkludera routers
 app.include_router(stt_ws.router, tags=["stt"])
+app.include_router(health.router, tags=["health"])
 
 
 # --------------------- Models -----------------------
@@ -60,9 +61,6 @@ class DebugListOut(BaseModel):
     data: list
 
 # --------------------- Endpoints --------------------
-@app.get("/healthz")
-async def healthz():
-    return {"ok": True, "ts": time.time()}
 
 @app.get("/config", response_model=ConfigOut)
 async def get_config():
